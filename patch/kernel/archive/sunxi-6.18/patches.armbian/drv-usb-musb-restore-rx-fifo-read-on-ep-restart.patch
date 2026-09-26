@@ -1,0 +1,51 @@
+From: Mika Ala-Sippola <mika.ala-sippola@outlook.com>
+Subject: [PATCH] usb: musb: restore rxstate in musb_ep_restart to fix RX packet drop
+
+Commit 3fc137386c46 ("usb: musb: Fix hardware lockup on first Rx endpoint
+request") replaced the call to rxstate(musb, req) in musb_ep_restart()
+with MUSB_RXCSR_FLUSHFIFO.
+
+While intended to avoid synchronously calling req->complete from within
+usb_ep_queue() for u_ether, flushing the RX FIFO whenever a request is
+queued discards any valid packet that arrived while no request was
+enqueued in userspace gadgets (e.g. FunctionFS / ADB, mass storage,
+USB serial).
+
+In protocols like ADB, the host sends the 24-byte header followed
+immediately by the payload. Once adbd reads the header and issues a read
+for the payload, musb_ep_restart() flushes the FIFO, permanently discarding
+the already-ACKed payload and hanging the connection forever.
+
+Restore the call to rxstate() when starting an RX request so pending
+FIFO data is unloaded into the enqueued request buffer.
+
+Signed-off-by: Mika Ala-Sippola <mika.ala-sippola@outlook.com>
+---
+ drivers/usb/musb/musb_gadget.c | 11 ++---------
+ 1 file changed, 2 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/usb/musb/musb_gadget.c b/drivers/usb/musb/musb_gadget.c
+index c6076df0d50c..910f50967627 100644
+--- a/drivers/usb/musb/musb_gadget.c
++++ b/drivers/usb/musb/musb_gadget.c
+@@ -1163,15 +1163,8 @@ void musb_ep_restart(struct musb *musb, struct musb_request *req)
+ {
+-	u16 csr;
+-	void __iomem *epio = req->ep->hw_ep->regs;
+-
+ 	trace_musb_req_start(req);
+ 	musb_ep_select(musb->mregs, req->epnum);
+-	if (req->tx) {
++	if (req->tx)
+ 		txstate(musb, req);
+-	} else {
+-		csr = musb_readw(epio, MUSB_RXCSR);
+-		csr |= MUSB_RXCSR_FLUSHFIFO | MUSB_RXCSR_P_WZC_BITS;
+-		musb_writew(epio, MUSB_RXCSR, csr);
+-		musb_writew(epio, MUSB_RXCSR, csr);
+-	}
++	else
++		rxstate(musb, req);
+ }
+-- 
+2.48.1

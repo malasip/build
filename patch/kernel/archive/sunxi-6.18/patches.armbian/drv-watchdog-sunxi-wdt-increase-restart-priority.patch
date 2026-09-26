@@ -1,0 +1,23 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Armbian Porting Team <info@armbian.com>
+Date: Tue, 25 Aug 2026 21:40:00 +0000
+Subject: [PATCH] watchdog: sunxi_wdt: Increase restart priority to override non-working PSCI reset
+
+---
+ drivers/watchdog/sunxi_wdt.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+--- a/drivers/watchdog/sunxi_wdt.c
++++ b/drivers/watchdog/sunxi_wdt.c
+@@ -282,7 +282,7 @@ static int sunxi_wdt_probe(struct platform_device *pdev)
+ 
+ 	watchdog_init_timeout(&sunxi_wdt->wdt_dev, timeout, dev);
+ 	watchdog_set_nowayout(&sunxi_wdt->wdt_dev, nowayout);
+-	watchdog_set_restart_priority(&sunxi_wdt->wdt_dev, 128);
++	watchdog_set_restart_priority(&sunxi_wdt->wdt_dev, 255);
+ 
+ 	watchdog_set_drvdata(&sunxi_wdt->wdt_dev, sunxi_wdt);
+ 
+-- 
+Armbian
+

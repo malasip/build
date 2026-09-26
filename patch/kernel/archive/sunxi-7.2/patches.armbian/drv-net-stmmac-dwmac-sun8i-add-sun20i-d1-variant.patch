@@ -1,0 +1,85 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Armbian Porting Team <info@armbian.com>
+Date: Tue, 25 Aug 2026 19:10:00 +0000
+Subject: [PATCH] net: stmmac: dwmac-sun8i: Add Allwinner D1 / T113-i variant with external PHY clock and reset handling
+
+---
+ drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c | 54 +++++++++++++++++++++++
+ 1 file changed, 54 insertions(+)
+
+--- a/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
++++ b/drivers/net/ethernet/stmicro/stmmac/dwmac-sun8i.c
+@@ -5,6 +5,8 @@
+  * Copyright (C) 2017 Corentin Labbe <clabbe.montjoie@gmail.com>
+  */
+ 
++#include <linux/gpio/consumer.h>
++#include <linux/delay.h>
+ #include <linux/clk.h>
+ #include <linux/etherdevice.h>
+ #include <linux/io.h>
+@@ -70,6 +72,7 @@
+  */
+ struct sunxi_priv_data {
+ 	struct clk *ephy_clk;
++	struct gpio_desc *phy_rst;
+ 	struct regulator *regulator_phy;
+ 	struct regulator *regulator_phy_io;
+ 	struct reset_control *rst_ephy;
+@@ -159,6 +162,16 @@
+ 	.tx_delay_max = 7,
+ };
+ 
++static const struct emac_variant emac_variant_d1 = {
++	.syscon_field = &sun8i_syscon_reg_field,
++	.soc_has_internal_phy = false,
++	.support_mii = true,
++	.support_rmii = true,
++	.support_rgmii = true,
++	.rx_delay_max = 31,
++	.tx_delay_max = 7,
++};
++
+ #define EMAC_BASIC_CTL0 0x00
+ #define EMAC_BASIC_CTL1 0x04
+ #define EMAC_INT_STA    0x08
+@@ -1192,6 +1205,28 @@
+ 	if (IS_ERR(gmac->regulator_phy_io))
+ 		return dev_err_probe(dev, PTR_ERR(gmac->regulator_phy_io),
+ 				     "Failed to get PHY I/O regulator\n");
++	/* Optional EPHY 25M clock output for external PHY (such as on D1/T113-i) */
++	gmac->ephy_clk = devm_clk_get_optional(dev, "ephy");
++	if (IS_ERR(gmac->ephy_clk))
++		return dev_err_probe(dev, PTR_ERR(gmac->ephy_clk),
++				     "Failed to get ephy clock\n");
++	ret = clk_prepare_enable(gmac->ephy_clk);
++	if (ret)
++		return dev_err_probe(dev, ret,
++				     "Failed to enable ephy clock\n");
++
++	/* Optional reset GPIO for external PHY (must be deasserted before MAC reset) */
++	gmac->phy_rst = devm_gpiod_get_optional(dev, "phy-rst", GPIOD_OUT_LOW);
++	if (IS_ERR(gmac->phy_rst))
++		return dev_err_probe(dev, PTR_ERR(gmac->phy_rst),
++				     "Failed to get PHY reset GPIO\n");
++	if (gmac->phy_rst) {
++		gpiod_set_value_cansleep(gmac->phy_rst, 1);
++		msleep(10);
++		gpiod_set_value_cansleep(gmac->phy_rst, 0);
++		msleep(30);
++	}
++
+ 
+ 	/* The "GMAC clock control" register might be located in the
+ 	 * CCU address range (on the R40), or the system control address
+@@ -1358,6 +1393,8 @@
+ 		.data = &emac_variant_h6 },
+ 	{ .compatible = "allwinner,sun50i-h616-internal-emac",
+ 		.data = &emac_variant_h616_internal },
++	{ .compatible = "allwinner,sun20i-d1-emac",
++		.data = &emac_variant_d1 },
+ 	{ }
+ };
+ MODULE_DEVICE_TABLE(of, sun8i_dwmac_match);
+-- 
+Armbian
