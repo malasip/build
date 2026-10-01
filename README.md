@@ -2,27 +2,32 @@
   <a href=#><img src="https://raw.githubusercontent.com/armbian/.github/master/profile/logosmall.png" alt="Armbian logo"></a>
   <br><br>
 </h3>
-> [!IMPORTANT]
-> ### Creality K2 Pro (Allwinner T113-i) Board Support
-> This branch (`creality-k2pro-t113i`) adds mainline Linux and Armbian board support for the **Creality K2 Pro 3D Printer** mainboard (Allwinner T113-i SoC).
->
-> **Hardware Status:**
-> - **Display**: Sitronix ST7701 480x800 MIPI-DSI panel with factory timings and DE mode (`sun4i-drm`)
-> - **Touchscreen**: Goodix GT911 capacitive touch controller on I2C3
-> - **Backlight**: GPIO backlight control via `/sys/class/backlight/`
-> - **Storage**: Onboard 32GB eMMC (`mmc2`)
-> - **Networking**: 100M Ethernet (RTL8201F PHY) & AIC8800 SDIO Wi-Fi (`mmc1`)
-> - **Serial / MCUs**: Toolhead MCU (UART3), Bed MCU (UART4), Main MCU (UART2), CFS / RS-485 (UART5)
-> - **USB**: Dual USB host ports and USB-OTG peripheral mode
->
-> **Build Instructions:**
-> ```bash
-> # Build full minimal OS image (Debian Bookworm):
-> ./compile.sh build BOARD=creality-k2pro-t113i BRANCH=current BUILD_DESKTOP=no BUILD_MINIMAL=yes RELEASE=bookworm
->
-> # Build kernel & DTB packages only:
-> ./compile.sh kernel BOARD=creality-k2pro-t113i BRANCH=current BUILD_DESKTOP=no BUILD_MINIMAL=yes KERNEL_CONFIGURE=no
-> ```
+
+# Creality K2 Pro (Allwinner T113-i) Armbian Support
+
+This branch (`creality-k2pro-t113i`) adds mainline Linux and Armbian board support for the **Creality K2 Pro 3D Printer** mainboard (Allwinner T113-i SoC).
+
+### Hardware Status
+
+- **Display**: Sitronix ST7701 480x800 MIPI-DSI panel with factory timings and DE mode (`sun4i-drm`)
+- **Touchscreen**: Goodix GT911 capacitive touch controller on I2C3
+- **Backlight**: GPIO backlight control via `/sys/class/backlight/`
+- **Storage**: Onboard 32GB eMMC (`mmc2`)
+- **Networking**: 100M Ethernet (RTL8201F PHY) & AIC8800 SDIO Wi-Fi (`mmc1`)
+- **Serial / MCUs**: Toolhead MCU (UART3), Bed MCU (UART4), Main MCU (UART2), CFS / RS-485 (UART5)
+- **USB**: Dual USB host ports and USB-OTG peripheral mode
+
+### Quick Build
+
+```bash
+# Build full minimal OS image (Debian Bookworm):
+./compile.sh build BOARD=creality-k2pro-t113i BRANCH=current BUILD_DESKTOP=no BUILD_MINIMAL=yes RELEASE=bookworm
+
+# Build kernel & DTB packages only:
+./compile.sh kernel BOARD=creality-k2pro-t113i BRANCH=current BUILD_DESKTOP=no BUILD_MINIMAL=yes KERNEL_CONFIGURE=no
+```
+
+---
 
 ## Purpose of This Repository
 
