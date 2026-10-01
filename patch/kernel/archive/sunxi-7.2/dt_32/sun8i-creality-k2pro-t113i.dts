@@ -11,500 +11,519 @@
 
 #include "sun8i-t113s.dtsi"
 
+#include <dt-bindings/clock/sun20i-d1-ccu.h>
 #include <dt-bindings/gpio/gpio.h>
 #include <dt-bindings/interrupt-controller/irq.h>
+#include <dt-bindings/pwm/pwm.h>
+#include <dt-bindings/reset/sun20i-d1-ccu.h>
 
 / {
-	model = "Creality K2 Pro Main SOC board (Allwinner T113-i)";
-	compatible = "creality,creality-k2pro-t113i", "allwinner,sun8i-t113i", "allwinner,sun8i-t113s";
+    model = "Creality K2 Pro Main SOC board (Allwinner T113-i)";
+    compatible = "creality,creality-k2pro-t113i", "allwinner,sun8i-t113i", "allwinner,sun8i-t113s";
 
-	aliases {
-		serial0 = &uart0;
-		serial2 = &uart2;
-		serial3 = &uart3;
-		serial4 = &uart4;
-		serial5 = &uart5;
-		ethernet0 = &emac;
-		mmc0 = &mmc2; /* eMMC mapped to mmc0 -> /dev/mmcblk0 */
-		mmc1 = &mmc1; /* SDIO WiFi -> /dev/mmcblk1 */
-	};
+    aliases {
+        serial0 = &uart0;
+        serial2 = &uart2;
+        serial3 = &uart3;
+        serial4 = &uart4;
+        serial5 = &uart5;
+        ethernet0 = &emac;
+        mmc0 = &mmc2; /* eMMC mapped to mmc0 -> /dev/mmcblk0 */
+        mmc1 = &mmc1; /* SDIO WiFi -> /dev/mmcblk1 */
+    };
 
-	chosen {
-		stdout-path = "serial0:115200n8";
-		bootargs = "console=ttyS0,115200 earlycon=uart8250,mmio32,0x02500000 fbcon=rotate:1 root=/dev/mmcblk0p6 rw rootwait clk_ignore_unused panic=10 init=/init";
+    chosen {
+        stdout-path = "serial0:115200n8";
+        bootargs = "console=ttyS0,115200 earlycon=uart8250,mmio32,0x02500000 fbcon=rotate:1 root=/dev/mmcblk0p6 rw rootwait clk_ignore_unused panic=10 init=/init";
+    };
 
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges;
+    reserved-memory {
+        #address-cells = <1>;
+        #size-cells = <1>;
+        ranges;
 
-		framebuffer0: framebuffer@5c91b000 {
-			compatible = "allwinner,simple-framebuffer", "simple-framebuffer";
-			reg = <0x5c91b000 (480 * 800 * 4)>;
-			width = <480>;
-			height = <800>;
-			stride = <(480 * 4)>;
-			format = "a8r8g8b8";
-			status = "okay";
-		};
-	};
+        dsp_reserved: dsp@42000000 {
+            reg = <0x42000000 0x01100000>; /* 17 MiB: covers 0x42000000 to 0x43100000 (DSP DDR, SRAM, RPMSG & DRAM tuning data) */
+            no-map;
+        };
 
-	reserved-memory {
-		#address-cells = <1>;
-		#size-cells = <1>;
-		ranges;
+        optee_reserved: optee@41b00000 {
+            reg = <0x41b00000 0x00100000>;
+            no-map;
+        };
+    };
 
-		fb_reserved: framebuffer@5c91b000 {
-			reg = <0x5c91b000 0x00177000>;
-			no-map;
-		};
+    memory@40000000 {
+        device_type = "memory";
+        reg = <0x40000000 0x20000000>; /* 512 MiB DDR3 */
+    };
 
-		dsp_reserved: dsp@42000000 {
-			reg = <0x42000000 0x01100000>; /* 17 MiB: covers 0x42000000 to 0x43100000 (DSP DDR, SRAM, RPMSG & DRAM tuning data) */
-			no-map;
-		};
+	/* Display Backlight: PF0 as GPIO switch (active high) */
+    backlight: backlight {
+        compatible = "gpio-backlight";
+        gpios = <&pio 5 0 GPIO_ACTIVE_HIGH>; /* PF0 */
+        default-on;
+        status = "okay";
+    };
 
-		optee_reserved: optee@41b00000 {
-			reg = <0x41b00000 0x00100000>;
-			no-map;
-		};
-	};
+    /* Fixed Regulators */
+    reg_vcc5v: regulator-5v {
+        compatible = "regulator-fixed";
+        regulator-name = "vcc-5v";
+        regulator-min-microvolt = <5000000>;
+        regulator-max-microvolt = <5000000>;
+        regulator-always-on;
+    };
 
-	memory@40000000 {
-		device_type = "memory";
-		reg = <0x40000000 0x20000000>; /* 512 MiB DDR3 */
-	};
+    reg_vcc3v3: regulator-3v3 {
+        compatible = "regulator-fixed";
+        regulator-name = "vcc-3v3";
+        regulator-min-microvolt = <3300000>;
+        regulator-max-microvolt = <3300000>;
+        regulator-always-on;
+    };
 
-	/* Display Backlight: PF0 (Active High in hardware) */
-	backlight: backlight {
-		compatible = "gpio-backlight";
-		gpios = <&pio 5 0 GPIO_ACTIVE_HIGH>;
-		default-on;
-		status = "okay";
-	};
+    reg_vcc_core: regulator-core {
+        compatible = "regulator-fixed";
+        regulator-name = "vcc-core";
+        regulator-min-microvolt = <950000>;
+        regulator-max-microvolt = <950000>;
+        vin-supply = <&reg_vcc3v3>;
+    };
 
+    /* USB 5V VBUS Power Switch: PF3 (Active Low in hardware) */
+    reg_usb0_vbus: regulator-usb0-vbus {
+        compatible = "regulator-fixed";
+        regulator-name = "usb0-vbus";
+        regulator-min-microvolt = <5000000>;
+        regulator-max-microvolt = <5000000>;
+        gpio = <&pio 5 3 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+    };
 
-	/* Fixed Regulators */
-	reg_vcc5v: regulator-5v {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc-5v";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		regulator-always-on;
-	};
+    /* USB Hub Reset: PF5 (Active Low) */
+    reg_usb_hub_rst: regulator-usb-hub-rst {
+        compatible = "regulator-fixed";
+        regulator-name = "usb-hub-rst";
+        gpio = <&pio 5 5 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	reg_vcc3v3: regulator-3v3 {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc-3v3";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		regulator-always-on;
-	};
+    /* USB U-Disk Power: PG18 (Active Low) */
+    reg_usb_udisk_pwr: regulator-usb-udisk-pwr {
+        compatible = "regulator-fixed";
+        regulator-name = "usb-udisk-pwr";
+        gpio = <&pio 6 18 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	reg_vcc_core: regulator-core {
-		compatible = "regulator-fixed";
-		regulator-name = "vcc-core";
-		regulator-min-microvolt = <950000>;
-		regulator-max-microvolt = <950000>;
-		vin-supply = <&reg_vcc3v3>;
-	};
+    /* USB Nozzle Camera Power: PF2 (Active Low) */
+    reg_usb_nozzle_cam_pwr: regulator-usb-nozzle-cam-pwr {
+        compatible = "regulator-fixed";
+        regulator-name = "usb-nozzle-cam-pwr";
+        gpio = <&pio 5 2 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	/* USB 5V VBUS Power Switch: PF3 (Active Low in hardware) */
-	reg_usb0_vbus: regulator-usb0-vbus {
-		compatible = "regulator-fixed";
-		regulator-name = "usb0-vbus";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&pio 5 3 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-	};
+    /* USB Chamber Camera Power: PG17 (Active Low) */
+    reg_usb_cms_cam_pwr: regulator-usb-cms-cam-pwr {
+        compatible = "regulator-fixed";
+        regulator-name = "usb-cms-cam-pwr";
+        gpio = <&pio 6 17 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	/* USB Hub Reset: PF5 (Active Low) */
-	reg_usb_hub_rst: regulator-usb-hub-rst {
-		compatible = "regulator-fixed";
-		regulator-name = "usb-hub-rst";
-		gpio = <&pio 5 5 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+    /* USB Camera Power: PF1 (Active Low) */
+    reg_usb_cam_pwr: regulator-usb-cam-pwr {
+        compatible = "regulator-fixed";
+        regulator-name = "usb-cam-pwr";
+        gpio = <&pio 5 1 GPIO_ACTIVE_LOW>;
+        enable-active-low;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	/* USB U-Disk Power: PG18 (Active Low) */
-	reg_usb_udisk_pwr: regulator-usb-udisk-pwr {
-		compatible = "regulator-fixed";
-		regulator-name = "usb-udisk-pwr";
-		gpio = <&pio 6 18 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+    /* WLAN RF Power: PG16 (Active High) */
+    reg_wlan_vcc: regulator-wlan-vcc {
+        compatible = "regulator-fixed";
+        regulator-name = "wlan-vcc";
+        regulator-min-microvolt = <3300000>;
+        regulator-max-microvolt = <3300000>;
+        gpio = <&pio 6 16 GPIO_ACTIVE_HIGH>;
+        enable-active-high;
+        regulator-always-on;
+        regulator-boot-on;
+    };
 
-	/* USB Nozzle Camera Power: PF2 (Active Low) */
-	reg_usb_nozzle_cam_pwr: regulator-usb-nozzle-cam-pwr {
-		compatible = "regulator-fixed";
-		regulator-name = "usb-nozzle-cam-pwr";
-		gpio = <&pio 5 2 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+    /* WiFi Power Sequence: PG15 WLAN_REG_ON, PG11 CLK_FANOUT1 (32k clock) */
+    wifi_pwrseq: wifi-pwrseq {
+        compatible = "mmc-pwrseq-simple";
+        clocks = <&ccu CLK_FANOUT1>;
+        clock-names = "ext_clock";
+        assigned-clocks = <&ccu CLK_FANOUT1>;
+        assigned-clock-rates = <32768>;
+        pinctrl-0 = <&clk_pg11_pin>;
+        pinctrl-names = "default";
+        reset-gpios = <&pio 6 15 GPIO_ACTIVE_LOW>;
+        post-power-on-delay-ms = <200>;
+        power-off-delay-us = <50>;
+    };
 
-	/* USB Chamber Camera Power: PG17 (Active Low) */
-	reg_usb_cms_cam_pwr: regulator-usb-cms-cam-pwr {
-		compatible = "regulator-fixed";
-		regulator-name = "usb-cms-cam-pwr";
-		gpio = <&pio 6 17 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+    /* System Status LED: PG6 */
+    leds {
+        compatible = "gpio-leds";
 
-	/* USB Camera Power: PF1 (Active Low) */
-	reg_usb_cam_pwr: regulator-usb-cam-pwr {
-		compatible = "regulator-fixed";
-		regulator-name = "usb-cam-pwr";
-		gpio = <&pio 5 1 GPIO_ACTIVE_LOW>;
-		enable-active-low;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+        led_sys: led-sys {
+            label = "k2pro:green:sys";
+            gpios = <&pio 6 6 GPIO_ACTIVE_HIGH>;
+            linux,default-trigger = "heartbeat";
+            default-state = "on";
+        };
+    };
 
-	/* Note: PE12 (Pin 140) is MCU Power/Reset, controlled via userspace /sys/class/gpio */
+    psci {
+        compatible = "arm,psci-1.0";
+        method = "smc";
+    };
 
+    cpus {
+        enable-method = "psci";
+    };
 
-	/* WLAN RF Power: PG16 (Active High) */
-	reg_wlan_vcc: regulator-wlan-vcc {
-		compatible = "regulator-fixed";
-		regulator-name = "wlan-vcc";
-		regulator-min-microvolt = <3300000>;
-		regulator-max-microvolt = <3300000>;
-		gpio = <&pio 6 16 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
-		regulator-always-on;
-		regulator-boot-on;
-	};
+    timer {
+        compatible = "arm,armv7-timer";
+        clock-frequency = <24000000>;
+        arm,cpu-registers-not-fw-configured;
+        arm,no-tick-in-suspend;
+    };
 
-	/* WiFi Power Sequence: PG15 WLAN_REG_ON, PG11 CLK_FANOUT1 (32k clock) */
-	wifi_pwrseq: wifi-pwrseq {
-		compatible = "mmc-pwrseq-simple";
-		clocks = <&ccu CLK_FANOUT1>;
-		clock-names = "ext_clock";
-		assigned-clocks = <&ccu CLK_FANOUT1>;
-		assigned-clock-rates = <32768>;
-		pinctrl-0 = <&clk_pg11_pin>;
-		pinctrl-names = "default";
-		reset-gpios = <&pio 6 15 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <200>;
-		power-off-delay-us = <50>;
-	};
-
-
-	/* System Status LED: PG6 (matches vendor sys_led) */
-	leds {
-		compatible = "gpio-leds";
-
-		led_sys: led-sys {
-			label = "k2pro:green:sys";
-			gpios = <&pio 6 6 GPIO_ACTIVE_HIGH>;
-			linux,default-trigger = "heartbeat";
-			default-state = "on";
-		};
-	};
-
-
-	psci {
-		compatible = "arm,psci-1.0";
-		method = "smc";
-	};
-
-	cpus {
-		enable-method = "psci";
-	};
-
-	timer {
-		compatible = "arm,armv7-timer";
-		clock-frequency = <24000000>;
-		arm,cpu-registers-not-fw-configured;
-		arm,no-tick-in-suspend;
-	};
 };
 
 &dcxo {
-	clock-frequency = <24000000>;
+    clock-frequency = <24000000>;
 };
 
 &cpu0 {
-	enable-method = "psci";
-	cpu-supply = <&reg_vcc_core>;
+    enable-method = "psci";
+    cpu-supply = <&reg_vcc_core>;
 };
 
 &cpu1 {
-	enable-method = "psci";
-	cpu-supply = <&reg_vcc_core>;
+    enable-method = "psci";
+    cpu-supply = <&reg_vcc_core>;
 };
 
 &pio {
-	vcc-pb-supply = <&reg_vcc3v3>;
-	vcc-pc-supply = <&reg_vcc3v3>;
-	vcc-pd-supply = <&reg_vcc3v3>;
-	vcc-pe-supply = <&reg_vcc3v3>;
-	vcc-pf-supply = <&reg_vcc3v3>;
-	vcc-pg-supply = <&reg_vcc3v3>;
+    vcc-pb-supply = <&reg_vcc3v3>;
+    vcc-pc-supply = <&reg_vcc3v3>;
+    vcc-pd-supply = <&reg_vcc3v3>;
+    vcc-pe-supply = <&reg_vcc3v3>;
+    vcc-pf-supply = <&reg_vcc3v3>;
+    vcc-pg-supply = <&reg_vcc3v3>;
 
-	uart0_pb_pins: uart0-pb-pins {
-		pins = "PB0", "PB1";
-		function = "uart0";
-		drive-strength = <10>;
-		bias-pull-up;
-	};
+    uart0_pb_pins: uart0-pb-pins {
+        pins = "PB0", "PB1";
+        function = "uart0";
+        drive-strength = <10>;
+        bias-pull-up;
+    };
 
-	uart2_pc_pins: uart2-pc-pins {
-		pins = "PC0", "PC1";
-		function = "uart2";
-		drive-strength = <10>;
-		bias-pull-up;
-	};
+    uart2_pc_pins: uart2-pc-pins {
+        pins = "PC0", "PC1";
+        function = "uart2";
+        drive-strength = <10>;
+        bias-pull-up;
+    };
 
-	uart3_pb_pins: uart3-pb-pins {
-		pins = "PB6", "PB7";
-		function = "uart3";
-		drive-strength = <10>;
-		bias-pull-up;
-	};
+    uart3_pb_pins: uart3-pb-pins {
+        pins = "PB6", "PB7";
+        function = "uart3";
+        drive-strength = <10>;
+        bias-pull-up;
+    };
 
-	uart4_pb_pins: uart4-pb-pins {
-		pins = "PB2", "PB3";
-		function = "uart4";
-		drive-strength = <10>;
-		bias-pull-up;
-	};
+    uart4_pb_pins: uart4-pb-pins {
+        pins = "PB2", "PB3";
+        function = "uart4";
+        drive-strength = <10>;
+        bias-pull-up;
+    };
 
-	uart5_pb_pins: uart5-pb-pins {
-		pins = "PB4", "PB5";
-		function = "uart5";
-		drive-strength = <10>;
-		bias-pull-up;
-	};
+    uart5_pb_pins: uart5-pb-pins {
+        pins = "PB4", "PB5";
+        function = "uart5";
+        drive-strength = <10>;
+        bias-pull-up;
+    };
 
-	i2c1_pg_pins: i2c1-pg-pins {
-		pins = "PG8", "PG9";
-		function = "i2c1";
-	};
+    pwm5_pin: pwm5-pin {
+        pins = "PD20";
+        function = "pwm5";
+    };
 
-	i2c3_pe_pins: i2c3-pe-pins {
-		pins = "PE16", "PE17";
-		function = "i2c3";
-	};
+    i2c1_pg_pins: i2c1-pg-pins {
+        pins = "PG8", "PG9";
+        function = "i2c1";
+    };
 
-	rmii_pe_pins: rmii-pe-pins {
-		pins = "PE0", "PE1", "PE2", "PE3", "PE4",
-		       "PE5", "PE6", "PE7", "PE8", "PE9", "PE10";
-		function = "emac";
-	};
+    i2c3_pe_pins: i2c3-pe-pins {
+        pins = "PE16", "PE17";
+        function = "i2c3";
+    };
 
-	mmc1_pins: mmc1-pins {
-		pins = "PG0", "PG1", "PG2", "PG3", "PG4", "PG5";
-		function = "mmc1";
-		drive-strength = <30>;
-		bias-pull-up;
-	};
+    rmii_pe_pins: rmii-pe-pins {
+        pins = "PE0", "PE1", "PE2", "PE3", "PE4",
+               "PE5", "PE6", "PE7", "PE8", "PE9", "PE10";
+        function = "emac";
+    };
 
-	mmc2_pins: mmc2-pins {
-		pins = "PC2", "PC3", "PC4", "PC5", "PC6", "PC7";
-		function = "mmc2";
-		drive-strength = <30>;
-		bias-pull-up;
-	};
+    mmc1_pins: mmc1-pins {
+        pins = "PG0", "PG1", "PG2", "PG3", "PG4", "PG5";
+        function = "mmc1";
+        drive-strength = <30>;
+        bias-pull-up;
+    };
 
+    mmc2_pins: mmc2-pins {
+        pins = "PC2", "PC3", "PC4", "PC5", "PC6", "PC7";
+        function = "mmc2";
+        drive-strength = <30>;
+        bias-pull-up;
+    };
 };
 
 /* UART0: Debug Console on PB0/PB1 */
 &uart0 {
-	pinctrl-0 = <&uart0_pb_pins>;
-	pinctrl-names = "default";
-	fifo-size = <64>;
-	/delete-property/ dmas;
-	/delete-property/ dma-names;
-	status = "okay";
+    pinctrl-0 = <&uart0_pb_pins>;
+    pinctrl-names = "default";
+    fifo-size = <64>;
+    /delete-property/ dmas;
+    /delete-property/ dma-names;
+    status = "okay";
 };
 
 /* UART2: Main MCU (PC0/PC1, 230400 baud) */
 &uart2 {
-	pinctrl-0 = <&uart2_pc_pins>;
-	pinctrl-names = "default";
-	/delete-property/ dmas;
-	/delete-property/ dma-names;
-	status = "okay";
+    pinctrl-0 = <&uart2_pc_pins>;
+    pinctrl-names = "default";
+    /delete-property/ dmas;
+    /delete-property/ dma-names;
+    status = "okay";
 };
 
 /* UART3: Toolhead / Nozzle MCU (PB6/PB7, 230400 baud) */
 &uart3 {
-	pinctrl-0 = <&uart3_pb_pins>;
-	pinctrl-names = "default";
-	/delete-property/ dmas;
-	/delete-property/ dma-names;
-	status = "okay";
+    pinctrl-0 = <&uart3_pb_pins>;
+    pinctrl-names = "default";
+    /delete-property/ dmas;
+    /delete-property/ dma-names;
+    status = "okay";
 };
 
 /* UART4: Bed MCU (PB2/PB3) */
 &uart4 {
-	pinctrl-0 = <&uart4_pb_pins>;
-	pinctrl-names = "default";
-	/delete-property/ dmas;
-	/delete-property/ dma-names;
-	status = "okay";
+    pinctrl-0 = <&uart4_pb_pins>;
+    pinctrl-names = "default";
+    /delete-property/ dmas;
+    /delete-property/ dma-names;
+    status = "okay";
 };
 
 /* UART5: RS-485 / CFS Box (PB4/PB5, 230400 baud) */
 &uart5 {
-	pinctrl-0 = <&uart5_pb_pins>;
-	pinctrl-names = "default";
-	/delete-property/ dmas;
-	/delete-property/ dma-names;
-	status = "okay";
+    pinctrl-0 = <&uart5_pb_pins>;
+    pinctrl-names = "default";
+    /delete-property/ dmas;
+    /delete-property/ dma-names;
+    status = "okay";
 };
 
 /* I2C1: PG8/PG9 */
 &i2c1 {
-	pinctrl-0 = <&i2c1_pg_pins>;
-	pinctrl-names = "default";
-	status = "okay";
+    pinctrl-0 = <&i2c1_pg_pins>;
+    pinctrl-names = "default";
+    status = "okay";
 };
 
 /* I2C3: PE16/PE17 with Goodix Touchscreen */
 &i2c3 {
-	pinctrl-0 = <&i2c3_pe_pins>;
-	pinctrl-names = "default";
-	status = "okay";
+    pinctrl-0 = <&i2c3_pe_pins>;
+    pinctrl-names = "default";
+    status = "okay";
 
-	touchscreen@14 {
-		compatible = "goodix,gt911";
-		reg = <0x14>;
-		interrupt-parent = <&pio>;
-		interrupts = <4 15 IRQ_TYPE_EDGE_FALLING>; /* PE15 */
-		irq-gpios = <&pio 4 15 GPIO_ACTIVE_HIGH>;
-		reset-gpios = <&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14 */
-		touchscreen-size-x = <480>;
-		touchscreen-size-y = <800>;
-		status = "okay";
-	};
+    touchscreen@14 {
+        compatible = "goodix,gt911";
+        reg = <0x14>;
+        interrupt-parent = <&pio>;
+        interrupts = <4 15 IRQ_TYPE_EDGE_FALLING>; /* PE15 */
+        irq-gpios = <&pio 4 15 GPIO_ACTIVE_HIGH>;
+        reset-gpios = <&pio 4 14 GPIO_ACTIVE_HIGH>; /* PE14 */
+        touchscreen-size-x = <480>;
+        touchscreen-size-y = <800>;
+        status = "okay";
+    };
 };
 
 /* SDIO WiFi on MMC1: PG0..PG5 */
 &mmc1 {
-	pinctrl-0 = <&mmc1_pins>;
-	pinctrl-names = "default";
-	vmmc-supply = <&reg_wlan_vcc>;
-	vqmmc-supply = <&reg_vcc3v3>;
-	mmc-pwrseq = <&wifi_pwrseq>;
-	bus-width = <4>;
-	non-removable;
-	cap-sd-highspeed;
-	no-mmc;
-	no-sd;
-	status = "okay";
+    pinctrl-0 = <&mmc1_pins>;
+    pinctrl-names = "default";
+    vmmc-supply = <&reg_wlan_vcc>;
+    vqmmc-supply = <&reg_vcc3v3>;
+    mmc-pwrseq = <&wifi_pwrseq>;
+    bus-width = <4>;
+    non-removable;
+    cap-sd-highspeed;
+    no-mmc;
+    no-sd;
+    status = "okay";
 
-	wifi@1 {
-		reg = <1>;
-		compatible = "radxa,aic8800", "aicsemi,aic8800";
-		interrupt-parent = <&pio>;
-		interrupts = <6 10 IRQ_TYPE_LEVEL_HIGH>; /* PG10 WLAN_HOSTWAKE */
-		interrupt-names = "host-wake";
-	};
+    wifi@1 {
+        reg = <1>;
+        compatible = "radxa,aic8800", "aicsemi,aic8800";
+        interrupt-parent = <&pio>;
+        interrupts = <6 10 IRQ_TYPE_LEVEL_HIGH>; /* PG10 WLAN_HOSTWAKE */
+        interrupt-names = "host-wake";
+    };
 };
 
 /* Onboard eMMC on MMC2: PC2..PC7 */
 &mmc2 {
-	pinctrl-0 = <&mmc2_pins>;
-	pinctrl-names = "default";
-	vmmc-supply = <&reg_vcc3v3>;
-	vqmmc-supply = <&reg_vcc3v3>;
-	bus-width = <8>;
-	non-removable;
-	cap-mmc-highspeed;
-	mmc-ddr-1_8v;
-	mmc-ddr-3_3v;
-	cap-sd-highspeed;
-	no-sd;
-	no-sdio;
-	status = "okay";
+    pinctrl-0 = <&mmc2_pins>;
+    pinctrl-names = "default";
+    vmmc-supply = <&reg_vcc3v3>;
+    vqmmc-supply = <&reg_vcc3v3>;
+    bus-width = <8>;
+    non-removable;
+    cap-mmc-highspeed;
+    mmc-ddr-1_8v;
+    mmc-ddr-3_3v;
+    cap-sd-highspeed;
+    no-sd;
+    no-sdio;
+    status = "okay";
 };
 
 /* 100M Ethernet (EMAC): RMII on PE0..PE10, RTL8201F PHY at address 0, Reset on PE11 */
 &emac {
-	pinctrl-0 = <&rmii_pe_pins>;
-	pinctrl-names = "default";
-	clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
-	clock-names = "stmmaceth", "ephy";
-	phy-mode = "rmii";
-	phy-handle = <&ext_rmii_phy>;
-	phy-supply = <&reg_vcc3v3>;
-	phy-rst-gpios = <&pio 4 11 GPIO_ACTIVE_LOW>;
-	allwinner,rx-delay-ps = <3100>;
-	allwinner,tx-delay-ps = <700>;
-	status = "okay";
+    pinctrl-0 = <&rmii_pe_pins>;
+    pinctrl-names = "default";
+    clocks = <&ccu CLK_BUS_EMAC>, <&ccu CLK_EMAC_25M>;
+    clock-names = "stmmaceth", "ephy";
+    phy-mode = "rmii";
+    phy-handle = <&ext_rmii_phy>;
+    phy-supply = <&reg_vcc3v3>;
+    phy-rst-gpios = <&pio 4 11 GPIO_ACTIVE_LOW>;
+    allwinner,rx-delay-ps = <3100>;
+    allwinner,tx-delay-ps = <700>;
+    status = "okay";
 
-	mdio {
-		#address-cells = <1>;
-		#size-cells = <0>;
+    mdio {
+        #address-cells = <1>;
+        #size-cells = <0>;
 
-		ext_rmii_phy: ethernet-phy@0 {
-			compatible = "ethernet-phy-ieee802.3-c22";
-			reg = <0>;
-		};
-	};
+        ext_rmii_phy: ethernet-phy@0 {
+            compatible = "ethernet-phy-ieee802.3-c22";
+            reg = <0>;
+        };
+    };
 };
-
 
 /* USB Host / OTG Controllers */
 &usbphy {
-	usb0_id_det-gpios = <&pio 6 7 GPIO_ACTIVE_HIGH>;
-	usb0_vbus-supply = <&reg_usb0_vbus>;
-	usb1_vbus-supply = <&reg_vcc5v>;
-	status = "okay";
+    usb0_id_det-gpios = <&pio 6 7 GPIO_ACTIVE_HIGH>;
+    usb0_vbus-supply = <&reg_usb0_vbus>;
+    usb1_vbus-supply = <&reg_vcc5v>;
+    status = "okay";
 };
 
 &usb_otg {
-	dr_mode = "peripheral";
-	status = "okay";
+    dr_mode = "peripheral";
+    status = "okay";
 };
 
 &ehci0 {
-	status = "disabled";
+    status = "disabled";
 };
 
 &ohci0 {
-	status = "disabled";
+    status = "disabled";
 };
 
 &ehci1 {
-	status = "okay";
+    status = "okay";
 };
 
 &ohci1 {
-	status = "okay";
+    status = "okay";
 };
 
 &wdt {
-	status = "okay";
+    status = "okay";
 };
 
 /* Clock configuration:
  * Set CPU to 1.200 GHz (1200 MHz max factory OPP) from PLL_CPUX
  */
 &ccu {
-	assigned-clocks = <&ccu CLK_PLL_CPUX>, <&ccu CLK_APB1>;
-	assigned-clock-parents = <0>, <&ccu CLK_PLL_PERIPH0>;
-	assigned-clock-rates = <1200000000>, <100000000>;
+    assigned-clocks = <&ccu CLK_PLL_CPUX>, <&ccu CLK_APB1>;
+    assigned-clock-parents = <0>, <&ccu CLK_PLL_PERIPH0>;
+    assigned-clock-rates = <1200000000>, <100000000>;
 };
 
 /* Crypto engine */
 &crypto {
-	/delete-property/ clocks;
-	/delete-property/ clock-names;
-	clocks = <&ccu 36>,
-		 <&ccu 35>,
-		 <&ccu 52>,
-		 <&ccu 35>;
-	clock-names = "bus", "mod", "ram", "trng";
-	status = "okay";
+    /delete-property/ clocks;
+    /delete-property/ clock-names;
+    clocks = <&ccu 36>,
+             <&ccu 35>,
+             <&ccu 52>,
+             <&ccu 35>;
+    clock-names = "bus", "mod", "ram", "trng";
+    status = "okay";
+};
+
+/* Display Engine 2.0 */
+&de {
+    status = "okay";
+};
+
+/* Timing Controller 0 */
+&tcon_lcd0 {
+    status = "okay";
+};
+
+&tcon_top {
+    status = "okay";
+};
+
+/* MIPI D-PHY */
+&dphy {
+    status = "okay";
+};
+
+/* MIPI-DSI Host Controller */
+&dsi {
+    vcc-dsi-supply = <&reg_vcc3v3>;
+    #address-cells = <1>;
+    #size-cells = <0>;
+    status = "okay";
+
+    panel@0 {
+        compatible = "tjc,st7701-480-800";
+        reg = <0>;
+        enable-gpios = <&pio 4 13 GPIO_ACTIVE_HIGH>;  /* PE13 (lcd_gpio_0, power/enable) */
+        reset-gpios = <&pio 3 19 GPIO_ACTIVE_LOW>;    /* PD19 (lcd_gpio_1, reset) */
+        backlight = <&backlight>;
+        VCC-supply = <&reg_vcc3v3>;
+        IOVCC-supply = <&reg_vcc3v3>;
+    };
 };
