@@ -439,23 +439,23 @@
 
 /* USB Host / OTG Controllers */
 &usbphy {
-    usb0_id_det-gpios = <&pio 6 7 GPIO_ACTIVE_HIGH>;
+    usb0_id_det-gpios = <&pio 6 7 GPIO_ACTIVE_LOW>;
     usb0_vbus-supply = <&reg_usb0_vbus>;
     usb1_vbus-supply = <&reg_vcc5v>;
     status = "okay";
 };
 
 &usb_otg {
-    dr_mode = "peripheral";
+    dr_mode = "otg";
     status = "okay";
 };
 
 &ehci0 {
-    status = "disabled";
+    status = "okay";
 };
 
 &ohci0 {
-    status = "disabled";
+    status = "okay";
 };
 
 &ehci1 {
